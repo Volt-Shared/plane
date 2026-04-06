@@ -105,6 +105,15 @@ export const coreRoutes: RouteConfigEntry[] = [
           route(":workspaceSlug/stickies", "./(all)/[workspaceSlug]/(projects)/stickies/page.tsx"),
         ]),
 
+        // Chat (Rocket.Chat integration)
+        layout("./(all)/[workspaceSlug]/(projects)/chat/layout.tsx", [
+          route(":workspaceSlug/chat", "./(all)/[workspaceSlug]/(projects)/chat/page.tsx"),
+          route(
+            ":workspaceSlug/chat/:projectIdentifier",
+            "./(all)/[workspaceSlug]/(projects)/chat/[projectIdentifier]/page.tsx"
+          ),
+        ]),
+
         // Workspace Views
         layout("./(all)/[workspaceSlug]/(projects)/workspace-views/layout.tsx", [
           route(":workspaceSlug/workspace-views", "./(all)/[workspaceSlug]/(projects)/workspace-views/page.tsx"),

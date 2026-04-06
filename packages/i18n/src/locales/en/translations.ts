@@ -13,6 +13,7 @@ export default {
   warning: "Warning",
   info: "Info",
   close: "Close",
+  chat: "Chat",
   yes: "Yes",
   no: "No",
   ok: "OK",

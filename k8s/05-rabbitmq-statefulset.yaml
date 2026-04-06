@@ -1,0 +1,94 @@
+# =============================================================================
+# 05-rabbitmq-statefulset.yaml — RabbitMQ StatefulSet
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: plane-mq
+  namespace: plane
+  labels:
+    app.kubernetes.io/name: plane-mq
+    app.kubernetes.io/part-of: plane
+spec:
+  clusterIP: None
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
+  selector:
+    app.kubernetes.io/name: plane-mq
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: plane-mq
+  namespace: plane
+  labels:
+    app.kubernetes.io/name: plane-mq
+    app.kubernetes.io/part-of: plane
+spec:
+  serviceName: plane-mq
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plane-mq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plane-mq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.13.6-management-alpine
+          ports:
+            - containerPort: 5672
+            - containerPort: 15672
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: plane-secrets
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: plane-secrets
+                  key: RABBITMQ_PASSWORD
+            - name: RABBITMQ_DEFAULT_VHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: plane-config
+                  key: RABBITMQ_VHOST
+          volumeMounts:
+            - name: mqdata
+              mountPath: /var/lib/rabbitmq
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "status"]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: mqdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

@@ -8,7 +8,7 @@
 
   redir /god-mode /god-mode/ permanent
 	reverse_proxy /god-mode/* admin:3000
-	
+
 	reverse_proxy /live/* live:3000
 
 	reverse_proxy /api/* api:8000
@@ -20,12 +20,68 @@
 	reverse_proxy /{$BUCKET_NAME}/* plane-minio:9000
 	reverse_proxy /{$BUCKET_NAME} plane-minio:9000
 
+	# ── Rocket.Chat integration ────────────────────────────────────────────────
+	# RC generates absolute links (/channel/*, /group/*, /direct/*) that bypass
+	# the /chat subpath. Transparently rewrite + proxy to RC.
+	handle /channel/* {
+		rewrite * /chat{uri}
+		reverse_proxy rocketchat:3000 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+	handle /group/* {
+		rewrite * /chat{uri}
+		reverse_proxy rocketchat:3000 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+	handle /direct/* {
+		rewrite * /chat{uri}
+		reverse_proxy rocketchat:3000 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# /chat/* → Rocket.Chat container (ROOT_URL = .../chat so no strip needed)
+	redir /chat /chat/ permanent
+	handle /chat/* {
+		reverse_proxy rocketchat:3000 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			transport http {
+				dial_timeout 30s
+				response_header_timeout 60s
+			}
+		}
+	}
+
+	# Chat-Service API (/chat-svc/* → chat-service:4000, strip prefix)
+	handle /chat-svc/* {
+		uri strip_prefix /chat-svc
+		reverse_proxy chat-service:4000 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+	# ──────────────────────────────────────────────────────────────────────────
+
 	reverse_proxy /* web:3000
 }
 
 {
 	{$CERT_EMAIL}
-	acme_ca {$CERT_ACME_CA:https://acme-v02.api.letsencrypt.org/directory} 
+	acme_ca {$CERT_ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
 	{$CERT_ACME_DNS}
 	servers {
 		max_header_size 25MB

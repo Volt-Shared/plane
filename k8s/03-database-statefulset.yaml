@@ -1,0 +1,103 @@
+# =============================================================================
+# 03-database-statefulset.yaml — PostgreSQL 15 StatefulSet + init Job
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: plane-db
+  namespace: plane
+  labels:
+    app.kubernetes.io/name: plane-db
+    app.kubernetes.io/part-of: plane
+spec:
+  clusterIP: None
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: plane-db
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: plane-db
+  namespace: plane
+  labels:
+    app.kubernetes.io/name: plane-db
+    app.kubernetes.io/part-of: plane
+spec:
+  serviceName: plane-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plane-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plane-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15.7-alpine
+          args: ["-c", "max_connections=1000"]
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: plane-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: plane-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: plane-secrets
+                  key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - plane
+                - -d
+                - plane
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - plane
+                - -d
+                - plane
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: pgdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi

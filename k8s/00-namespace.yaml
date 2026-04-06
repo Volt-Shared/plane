@@ -1,0 +1,9 @@
+# =============================================================================
+# 00-namespace.yaml — Plane namespace
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: plane
+  labels:
+    app.kubernetes.io/part-of: plane

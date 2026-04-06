@@ -1,0 +1,100 @@
+# =============================================================================
+# 06-minio-deployment.yaml — MinIO object storage
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: plane-minio
+  namespace: plane
+  labels:
+    app.kubernetes.io/name: plane-minio
+    app.kubernetes.io/part-of: plane
+spec:
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9090
+      targetPort: 9090
+  selector:
+    app.kubernetes.io/name: plane-minio
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+  namespace: plane
+  labels:
+    app.kubernetes.io/name: plane-minio
+    app.kubernetes.io/part-of: plane
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plane-minio
+  namespace: plane
+  labels:
+    app.kubernetes.io/name: plane-minio
+    app.kubernetes.io/part-of: plane
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plane-minio
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plane-minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:latest
+          command: ["server", "/export", "--console-address", ":9090"]
+          ports:
+            - containerPort: 9000
+            - containerPort: 9090
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: plane-secrets
+                  key: AWS_ACCESS_KEY_ID
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: plane-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+          volumeMounts:
+            - name: data
+              mountPath: /export
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-data

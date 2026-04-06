@@ -1,0 +1,91 @@
+# =============================================================================
+# 02-configmap.yaml — Non-sensitive configuration
+# =============================================================================
+#
+# Replace CHANGE_ME_DOMAIN with your actual domain before deploying.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plane-config
+  namespace: plane
+  labels:
+    app.kubernetes.io/part-of: plane
+data:
+  # ── Domain (change this) ──────────────────────────────────────────────────
+  DOMAIN: "CHANGE_ME_DOMAIN"
+
+  # ── Postgres ──────────────────────────────────────────────────────────────
+  POSTGRES_HOST: "plane-db"
+  POSTGRES_PORT: "5432"
+  PGDATA: "/var/lib/postgresql/data"
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  REDIS_HOST: "plane-redis"
+  REDIS_PORT: "6379"
+  REDIS_URL: "redis://plane-redis:6379/"
+
+  # ── RabbitMQ ──────────────────────────────────────────────────────────────
+  RABBITMQ_HOST: "plane-mq"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_VHOST: "plane"
+
+  # ── MinIO / S3 ────────────────────────────────────────────────────────────
+  AWS_REGION: ""
+  AWS_S3_ENDPOINT_URL: "http://plane-minio:9000"
+  AWS_S3_BUCKET_NAME: "uploads"
+  FILE_SIZE_LIMIT: "5242880"
+  USE_MINIO: "1"
+  MINIO_ENDPOINT_SSL: "0"
+  SIGNED_URL_EXPIRATION: "3600"
+
+  # ── API ───────────────────────────────────────────────────────────────────
+  DEBUG: "0"
+  DOCKERIZED: "1"
+  GUNICORN_WORKERS: "4"
+  API_KEY_RATE_LIMIT: "60/minute"
+  HARD_DELETE_AFTER_DAYS: "60"
+
+  # ── URLs (will be templated with DOMAIN in deployments) ───────────────────
+  WEB_URL: "https://CHANGE_ME_DOMAIN"
+  APP_BASE_URL: "https://CHANGE_ME_DOMAIN"
+  APP_BASE_PATH: ""
+  ADMIN_BASE_URL: "https://CHANGE_ME_DOMAIN"
+  ADMIN_BASE_PATH: "/god-mode"
+  SPACE_BASE_URL: "https://CHANGE_ME_DOMAIN"
+  SPACE_BASE_PATH: "/spaces"
+  LIVE_BASE_URL: "https://CHANGE_ME_DOMAIN"
+  LIVE_BASE_PATH: "/live"
+  CORS_ALLOWED_ORIGINS: "https://CHANGE_ME_DOMAIN"
+
+  # ── Live server ───────────────────────────────────────────────────────────
+  LIVE_PORT: "3000"
+  LIVE_API_BASE_URL: "http://plane-api:8000"
+  LIVE_WEB_BASE_URL: "http://plane-web:3000"
+  LIVE_LIVE_BASE_URL: "http://plane-live:3000"
+
+  # ── Rocket.Chat ───────────────────────────────────────────────────────────
+  ROCKETCHAT_ROOT_URL: "https://CHANGE_ME_DOMAIN/chat"
+  ROCKETCHAT_INTERNAL_URL: "http://plane-rocketchat:3000/chat"
+  ROCKETCHAT_ADMIN_EMAIL_CONFIG: "admin@plane.local"
+
+  # ── Chat-service ──────────────────────────────────────────────────────────
+  CHAT_SERVICE_PORT: "4000"
+  CHAT_SERVICE_LOG_LEVEL: "info"
+  PLANE_API_INTERNAL_URL: "http://plane-api:8000"
+  PLANE_WORKSPACE_SLUG: "volt"
+  SYNC_CRON: "*/30 * * * *"
+  NODE_ENV: "production"
+
+  # ── Plane users to create (init-job reads this) ───────────────────────────
+  PLANE_USERS: |
+    aziz@falcons.tn
+    selim@falcons.tn
+    taoufik@falcons.tn
+    houssem@falcons.tn
+    mortadha@falcons.tn
+    faycel@falcons.tn
+    ala@falcons.tn
+    khalil@falcons.tn
+    ahmed@falcons.tn
+  PLANE_WORKSPACE_NAME: "Volt"

@@ -1,0 +1,187 @@
+# =============================================================================
+# 09-ingress.yaml — Nginx Ingress with cert-manager TLS
+#
+# Replace CHANGE_ME_DOMAIN with your actual domain.
+# Requires: ingress-nginx controller + cert-manager installed in the cluster.
+#
+# Install:
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+# =============================================================================
+
+# ─── ClusterIssuer for Let's Encrypt ────────────────────────────────────────
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@CHANGE_ME_DOMAIN
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+---
+# ─── Ingress ────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plane-ingress
+  namespace: plane
+  labels:
+    app.kubernetes.io/part-of: plane
+  annotations:
+    # cert-manager
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # nginx config
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+
+    # WebSocket support for /live
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+
+    # Custom headers to allow Rocket.Chat iframe embedding
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      # Remove X-Frame-Options from RC responses so iframe embedding works
+      more_clear_headers "X-Frame-Options";
+
+    # Rewrite rules for RC subpath absolute links
+    nginx.ingress.kubernetes.io/server-snippet: |
+      # RC generates absolute /channel/*, /group/*, /direct/* links.
+      # Rewrite them to /chat/channel/*, etc.
+      location ~ ^/(channel|group|direct)/(.*)$ {
+        rewrite ^/(channel|group|direct)/(.*)$ /chat/$1/$2 last;
+      }
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - CHANGE_ME_DOMAIN
+      secretName: plane-tls
+  rules:
+    - host: CHANGE_ME_DOMAIN
+      http:
+        paths:
+          # ── API ──
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-api
+                port:
+                  number: 8000
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-api
+                port:
+                  number: 8000
+          - path: /static
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-api
+                port:
+                  number: 8000
+
+          # ── MinIO storage ──
+          - path: /uploads
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-minio
+                port:
+                  number: 9000
+
+          # ── Admin panel ──
+          - path: /god-mode
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-admin
+                port:
+                  number: 3000
+
+          # ── Spaces (public pages) ──
+          - path: /spaces
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-space
+                port:
+                  number: 3000
+
+          # ── Live (WebSockets) ──
+          - path: /live
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-live
+                port:
+                  number: 3000
+
+          # ── Rocket.Chat ──
+          - path: /chat
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-rocketchat
+                port:
+                  number: 3000
+
+          # ── Chat-Service API (strip /chat-svc prefix) ──
+          - path: /chat-svc
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-chat-service
+                port:
+                  number: 4000
+
+          # ── Frontend (catch-all, must be last) ──
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-web
+                port:
+                  number: 3000
+---
+# ─── Ingress annotation for chat-svc path stripping ────────────────────────
+# The chat-service expects requests without the /chat-svc prefix.
+# Use a separate Ingress to apply the rewrite rule.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plane-chat-svc-ingress
+  namespace: plane
+  labels:
+    app.kubernetes.io/part-of: plane
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - CHANGE_ME_DOMAIN
+      secretName: plane-tls
+  rules:
+    - host: CHANGE_ME_DOMAIN
+      http:
+        paths:
+          - path: /chat-svc(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: plane-chat-service
+                port:
+                  number: 4000
