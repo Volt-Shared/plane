@@ -1,60 +1,40 @@
 # =============================================================================
-# 09-ingress.yaml — Nginx Ingress with cert-manager TLS
-#
-# Replace CHANGE_ME_DOMAIN with your actual domain.
-# Requires: ingress-nginx controller + cert-manager installed in the cluster.
-#
-# Install:
-#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml
-#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+# 09-ingress.yaml — Nginx Ingress with Expanded Service Blocks
 # =============================================================================
-
-# ─── ClusterIssuer for Let's Encrypt ────────────────────────────────────────
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: letsencrypt-prod
+  name: letsencrypt-foodify
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: admin@CHANGE_ME_DOMAIN
+    email: admin@foodifytn.app 
     privateKeySecretRef:
-      name: letsencrypt-prod-key
+      name: letsencrypt-foodify-key
     solvers:
-      - http01:
-          ingress:
-            class: nginx
+    - http01:
+        ingress:
+          class: nginx
 ---
-# ─── Ingress ────────────────────────────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: plane-ingress
   namespace: plane
-  labels:
-    app.kubernetes.io/part-of: plane
   annotations:
-    # cert-manager
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-
-    # nginx config
+    cert-manager.io/cluster-issuer: "letsencrypt-foodify"
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
-
-    # WebSocket support for /live
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
-
-    # Custom headers to allow Rocket.Chat iframe embedding
+    
+    # Rocket.Chat Iframe Hack
     nginx.ingress.kubernetes.io/configuration-snippet: |
-      # Remove X-Frame-Options from RC responses so iframe embedding works
       more_clear_headers "X-Frame-Options";
-
-    # Rewrite rules for RC subpath absolute links
+      proxy_set_header X-Frame-Options "";
+    
+    # Link Rewrites for Chat
     nginx.ingress.kubernetes.io/server-snippet: |
-      # RC generates absolute /channel/*, /group/*, /direct/* links.
-      # Rewrite them to /chat/channel/*, etc.
       location ~ ^/(channel|group|direct)/(.*)$ {
         rewrite ^/(channel|group|direct)/(.*)$ /chat/$1/$2 last;
       }
@@ -62,13 +42,13 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - CHANGE_ME_DOMAIN
-      secretName: plane-tls
+        - plane.foodifytn.app
+      secretName: plane-tls-prod
   rules:
-    - host: CHANGE_ME_DOMAIN
+    - host: plane.foodifytn.app
       http:
         paths:
-          # ── API ──
+          # --- API ---
           - path: /api
             pathType: Prefix
             backend:
@@ -83,16 +63,9 @@ spec:
                 name: plane-api
                 port:
                   number: 8000
-          - path: /static
-            pathType: Prefix
-            backend:
-              service:
-                name: plane-api
-                port:
-                  number: 8000
 
-          # ── MinIO storage ──
-          - path: /uploads
+          # --- MinIO Storage ---
+          - path: /plane-storage
             pathType: Prefix
             backend:
               service:
@@ -100,25 +73,7 @@ spec:
                 port:
                   number: 9000
 
-          # ── Admin panel ──
-          - path: /god-mode
-            pathType: Prefix
-            backend:
-              service:
-                name: plane-admin
-                port:
-                  number: 3000
-
-          # ── Spaces (public pages) ──
-          - path: /spaces
-            pathType: Prefix
-            backend:
-              service:
-                name: plane-space
-                port:
-                  number: 3000
-
-          # ── Live (WebSockets) ──
+          # --- Live / WebSockets ---
           - path: /live
             pathType: Prefix
             backend:
@@ -127,7 +82,7 @@ spec:
                 port:
                   number: 3000
 
-          # ── Rocket.Chat ──
+          # --- Rocket.Chat ---
           - path: /chat
             pathType: Prefix
             backend:
@@ -136,16 +91,7 @@ spec:
                 port:
                   number: 3000
 
-          # ── Chat-Service API (strip /chat-svc prefix) ──
-          - path: /chat-svc
-            pathType: Prefix
-            backend:
-              service:
-                name: plane-chat-service
-                port:
-                  number: 4000
-
-          # ── Frontend (catch-all, must be last) ──
+          # --- Frontend (Catch-all) ---
           - path: /
             pathType: Prefix
             backend:
@@ -154,28 +100,23 @@ spec:
                 port:
                   number: 3000
 ---
-# ─── Ingress annotation for chat-svc path stripping ────────────────────────
-# The chat-service expects requests without the /chat-svc prefix.
-# Use a separate Ingress to apply the rewrite rule.
+# --- Chat-Service Ingress (Separate for Rewrite Target) ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: plane-chat-svc-ingress
   namespace: plane
-  labels:
-    app.kubernetes.io/part-of: plane
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/cluster-issuer: "letsencrypt-foodify"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
-    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - CHANGE_ME_DOMAIN
-      secretName: plane-tls
+        - plane.foodifytn.app
+      secretName: plane-tls-prod
   rules:
-    - host: CHANGE_ME_DOMAIN
+    - host: plane.foodifytn.app
       http:
         paths:
           - path: /chat-svc(/|$)(.*)

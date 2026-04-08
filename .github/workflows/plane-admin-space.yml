@@ -1,0 +1,48 @@
+name: deploy-admin-space
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apps/admin/**'
+      - 'apps/space/**'
+      - 'k8s/14-plane-admin-space.yaml'
+
+jobs:
+  build-push-sync:
+    runs-on: ubuntu-latest
+    permissions: { contents: write, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.volt_infra_pat }}
+
+      - name: login to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.volt_infra_pat }}
+
+      - name: build admin
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/admin/Dockerfile
+          push: true
+          tags: ghcr.io/volt-shared/volt-plane-admin:latest
+
+      - name: build space
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/space/Dockerfile
+          push: true
+          tags: ghcr.io/volt-shared/volt-plane-space:latest
+
+      - name: git commit
+        run: |
+          git config user.name "volt-bot"
+          git config user.email "actions@github.com"
+          git commit -am "chore(ops): rebuild admin/space images [skip ci]" || echo "No changes"
+          git push origin master

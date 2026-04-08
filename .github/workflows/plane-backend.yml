@@ -1,0 +1,59 @@
+name: deploy-backend
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apps/api/**'
+      - 'k8s/07-plane-migrator.yaml'
+      - 'k8s/08-plane-api.yaml'
+      - 'k8s/09-plane-worker.yaml'
+      - 'k8s/10-plane-beat.yaml'
+
+jobs:
+  build-push-sync:
+    runs-on: ubuntu-latest
+    permissions: { contents: write, packages: write }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.volt_infra_pat }}
+
+      - name: login to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.volt_infra_pat }}
+
+      - name: set vars
+        id: vars
+        run: |
+          tag="backend-${{ github.run_number }}"
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "image=ghcr.io/volt-shared/volt-plane-backend:$tag" >> $GITHUB_OUTPUT
+
+      - name: build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.vars.outputs.image }}
+            ghcr.io/volt-shared/volt-plane-backend:latest
+
+      - name: update k8s tags
+        run: |
+          sed -i "s|image: ghcr.io/volt-shared/volt-plane-backend:.*|image: ${{ steps.vars.outputs.image }}|g" k8s/07-plane-migrator.yaml
+          sed -i "s|image: ghcr.io/volt-shared/volt-plane-backend:.*|image: ${{ steps.vars.outputs.image }}|g" k8s/08-plane-api.yaml
+          sed -i "s|image: ghcr.io/volt-shared/volt-plane-backend:.*|image: ${{ steps.vars.outputs.image }}|g" k8s/09-plane-worker.yaml
+          sed -i "s|image: ghcr.io/volt-shared/volt-plane-backend:.*|image: ${{ steps.vars.outputs.image }}|g" k8s/10-plane-beat.yaml
+
+      - name: git commit
+        run: |
+          git config user.name "volt-bot"
+          git config user.email "actions@github.com"
+          git add k8s/*.yaml
+          git commit -m "chore(ops): sync backend images to ${{ steps.vars.outputs.tag }} [skip ci]" || echo "No changes"
+          git push origin master

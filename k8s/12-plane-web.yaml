@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: plane-web
+  namespace: plane
+  labels:
+    app.kubernetes.io/name: plane-web
+spec:
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app.kubernetes.io/name: plane-web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plane-web
+  namespace: plane
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plane-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plane-web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/volt-shared/volt-plane-web:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: plane-config

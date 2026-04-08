@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: plane-live
+  namespace: plane
+  labels:
+    app.kubernetes.io/name: plane-live
+spec:
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app.kubernetes.io/name: plane-live
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plane-live
+  namespace: plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plane-live
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plane-live
+    spec:
+      containers:
+        - name: live
+          image: ghcr.io/volt-shared/volt-plane-live:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: plane-config
+            - secretRef:
+                name: plane-secrets

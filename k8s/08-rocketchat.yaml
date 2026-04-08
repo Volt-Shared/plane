@@ -1,19 +1,11 @@
 # =============================================================================
-# 08-rocketchat.yaml — Rocket.Chat + MongoDB + Chat-Service
-#
-# Build chat-service image:
-#   docker build -t YOUR_REGISTRY/plane-chat-service:latest services/chat-service/
+# 08-rocketchat.yaml — Rocket.Chat + MongoDB + Chat-Service (Foodify)
 # =============================================================================
-
-# ─── MongoDB for Rocket.Chat (StatefulSet with replica-set) ─────────────────
 apiVersion: v1
 kind: Service
 metadata:
   name: plane-chat-mongodb
   namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-chat-mongodb
-    app.kubernetes.io/part-of: plane
 spec:
   clusterIP: None
   ports:
@@ -27,9 +19,6 @@ kind: StatefulSet
 metadata:
   name: plane-chat-mongodb
   namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-chat-mongodb
-    app.kubernetes.io/part-of: plane
 spec:
   serviceName: plane-chat-mongodb
   replicas: 1
@@ -50,13 +39,6 @@ spec:
           volumeMounts:
             - name: mongodata
               mountPath: /data/db
-          resources:
-            requests:
-              cpu: 200m
-              memory: 512Mi
-            limits:
-              cpu: "1"
-              memory: 2Gi
           readinessProbe:
             exec:
               command:
@@ -64,14 +46,9 @@ spec:
                 - --quiet
                 - --eval
                 - "try { rs.status().ok } catch(e) { rs.initiate({_id:'rs0', members:[{_id:0, host:'plane-chat-mongodb-0.plane-chat-mongodb.plane.svc.cluster.local:27017'}]}); 1; }"
-            initialDelaySeconds: 15
-            periodSeconds: 10
-            timeoutSeconds: 10
           livenessProbe:
             exec:
               command: ["mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
-            initialDelaySeconds: 30
-            periodSeconds: 30
   volumeClaimTemplates:
     - metadata:
         name: mongodata
@@ -81,30 +58,11 @@ spec:
           requests:
             storage: 20Gi
 ---
-# ─── Rocket.Chat ────────────────────────────────────────────────────────────
-apiVersion: v1
-kind: Service
-metadata:
-  name: plane-rocketchat
-  namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-rocketchat
-    app.kubernetes.io/part-of: plane
-spec:
-  ports:
-    - port: 3000
-      targetPort: 3000
-  selector:
-    app.kubernetes.io/name: plane-rocketchat
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: plane-rocketchat
   namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-rocketchat
-    app.kubernetes.io/part-of: plane
 spec:
   replicas: 1
   strategy:
@@ -127,135 +85,42 @@ spec:
           ports:
             - containerPort: 3000
           env:
-            # MongoDB
             - name: MONGO_URL
               value: "mongodb://plane-chat-mongodb-0.plane-chat-mongodb.plane.svc.cluster.local:27017/rocketchat?replicaSet=rs0"
             - name: MONGO_OPLOG_URL
               value: "mongodb://plane-chat-mongodb-0.plane-chat-mongodb.plane.svc.cluster.local:27017/local?replicaSet=rs0"
-
-            # Root URL — served under /chat subpath via Ingress
             - name: ROOT_URL
-              value: "https://CHANGE_ME_DOMAIN/chat"
+              value: "https://plane.foodifytn.app/chat"
             - name: PORT
               value: "3000"
-
-            # Admin auto-create
             - name: ADMIN_USERNAME
               valueFrom:
-                secretKeyRef:
-                  name: plane-secrets
-                  key: ROCKETCHAT_ADMIN_USERNAME
+                secretKeyRef: { name: plane-secrets, key: ROCKETCHAT_ADMIN_USERNAME }
             - name: ADMIN_PASS
               valueFrom:
-                secretKeyRef:
-                  name: plane-secrets
-                  key: ROCKETCHAT_ADMIN_PASSWORD
+                secretKeyRef: { name: plane-secrets, key: ROCKETCHAT_ADMIN_PASSWORD }
             - name: ADMIN_EMAIL
               valueFrom:
-                secretKeyRef:
-                  name: plane-secrets
-                  key: ROCKETCHAT_ADMIN_EMAIL
-
-            # ── Iframe SSO ──
+                secretKeyRef: { name: plane-secrets, key: ROCKETCHAT_ADMIN_EMAIL }
+            # SSO Settings for Foodify
             - name: OVERWRITE_SETTING_Accounts_iframe_enabled
               value: "true"
             - name: OVERWRITE_SETTING_Accounts_iframe_url
-              value: "https://CHANGE_ME_DOMAIN/chat-svc/sso/rc-iframe-auth"
+              value: "https://plane.foodifytn.app/chat-svc/sso/rc-iframe-auth"
             - name: OVERWRITE_SETTING_Accounts_Iframe_api_url
-              value: "https://CHANGE_ME_DOMAIN/chat-svc/sso/rc-iframe-auth"
+              value: "https://plane.foodifytn.app/chat-svc/sso/rc-iframe-auth"
             - name: OVERWRITE_SETTING_Accounts_Iframe_api_method
               value: "GET"
-
-            # ── CORS ──
             - name: OVERWRITE_SETTING_CORS_Origin
               value: "*"
-
-            # ── Disable iframe postMessage integration (X-Frame-Options fix) ──
-            - name: OVERWRITE_SETTING_Iframe_Integration_send_enable
-              value: "false"
-            - name: OVERWRITE_SETTING_Iframe_Integration_receive_enable
-              value: "false"
-            - name: OVERWRITE_SETTING_Iframe_Restrict
-              value: ""
             - name: OVERWRITE_SETTING_HTTP_X_Frame_Options
               value: ""
-
-            # ── Disable notification sounds (autoplay fix in iframe) ──
-            - name: OVERWRITE_SETTING_Accounts_Default_User_Preferences_newRoomNotification
-              value: "none"
-            - name: OVERWRITE_SETTING_Accounts_Default_User_Preferences_newMessageNotification
-              value: "none"
-            - name: OVERWRITE_SETTING_Accounts_Default_User_Preferences_desktopNotifications
-              value: "nothing"
-
-            # ── Rate limiting ──
-            - name: OVERWRITE_SETTING_API_Enable_Rate_Limiter
-              value: "true"
-            - name: OVERWRITE_SETTING_API_Enable_Rate_Limiter_Limit_Calls_Default
-              value: "100"
-
-            # ── Registration & 2FA ──
-            - name: OVERWRITE_SETTING_Accounts_RegistrationForm
-              value: "Disabled"
-            - name: OVERWRITE_SETTING_Accounts_TwoFactorAuthentication_Enabled
-              value: "false"
-            - name: OVERWRITE_SETTING_Accounts_TwoFactorAuthentication_By_Email_Enabled
-              value: "false"
-            - name: OVERWRITE_SETTING_Accounts_TwoFactorAuthentication_By_TOTP_Enabled
-              value: "false"
-
-            # ── Site name ──
-            - name: OVERWRITE_SETTING_Site_Name
-              value: "Plane Chat"
-
-          resources:
-            requests:
-              cpu: 500m
-              memory: 1Gi
-            limits:
-              cpu: "2"
-              memory: 4Gi
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 60
-            periodSeconds: 15
-            timeoutSeconds: 10
-            failureThreshold: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            initialDelaySeconds: 120
-            periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 5
----
-# ─── Chat-Service (Plane <-> Rocket.Chat bridge) ────────────────────────────
-apiVersion: v1
-kind: Service
-metadata:
-  name: plane-chat-service
-  namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-chat-service
-    app.kubernetes.io/part-of: plane
-spec:
-  ports:
-    - port: 4000
-      targetPort: 4000
-  selector:
-    app.kubernetes.io/name: plane-chat-service
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: plane-chat-service
   namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-chat-service
-    app.kubernetes.io/part-of: plane
 spec:
   replicas: 1
   selector:
@@ -266,10 +131,6 @@ spec:
       labels:
         app.kubernetes.io/name: plane-chat-service
     spec:
-      initContainers:
-        - name: wait-for-rc
-          image: busybox:1.36
-          command: ["sh", "-c", "until nc -z plane-rocketchat 3000; do sleep 5; done"]
       containers:
         - name: chat-service
           image: YOUR_REGISTRY/plane-chat-service:latest
@@ -278,90 +139,14 @@ spec:
           env:
             - name: NODE_ENV
               value: "production"
-            - name: PORT
-              value: "4000"
-            - name: LOG_LEVEL
-              value: "info"
-
-            # Rocket.Chat
             - name: ROCKETCHAT_ROOT_URL
-              value: "https://CHANGE_ME_DOMAIN/chat"
+              value: "https://plane.foodifytn.app/chat"
             - name: ROCKETCHAT_URL
               value: "http://plane-rocketchat:3000/chat"
-            - name: ROCKETCHAT_ADMIN_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: plane-secrets
-                  key: ROCKETCHAT_ADMIN_USERNAME
-            - name: ROCKETCHAT_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: plane-secrets
-                  key: ROCKETCHAT_ADMIN_PASSWORD
-            - name: ROCKETCHAT_ADMIN_EMAIL
-              valueFrom:
-                secretKeyRef:
-                  name: plane-secrets
-                  key: ROCKETCHAT_ADMIN_EMAIL
-            - name: ROCKETCHAT_JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: plane-secrets
-                  key: ROCKETCHAT_JWT_SECRET
-
-            # Plane
             - name: PLANE_API_URL
               value: "http://plane-api:8000"
-            - name: PLANE_API_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: plane-secrets
-                  key: PLANE_API_TOKEN
+            # Pulled from Secret/Config
+            - name: ROCKETCHAT_JWT_SECRET
+              valueFrom: { secretKeyRef: { name: plane-secrets, key: ROCKETCHAT_JWT_SECRET } }
             - name: PLANE_WORKSPACE_SLUG
-              valueFrom:
-                configMapKeyRef:
-                  name: plane-config
-                  key: PLANE_WORKSPACE_SLUG
-            - name: PLANE_WEBHOOK_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: plane-secrets
-                  key: PLANE_WEBHOOK_SECRET
-
-            # Redis (shared with Plane)
-            - name: REDIS_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: plane-config
-                  key: REDIS_URL
-
-            # Sync
-            - name: SYNC_CRON
-              valueFrom:
-                configMapKeyRef:
-                  name: plane-config
-                  key: SYNC_CRON
-            - name: CHAT_SERVICE_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: plane-secrets
-                  key: CHAT_SERVICE_SECRET
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 4000
-            initialDelaySeconds: 15
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 4000
-            initialDelaySeconds: 30
-            periodSeconds: 30
+              valueFrom: { configMapKeyRef: { name: plane-config, key: PLANE_WORKSPACE_SLUG } }

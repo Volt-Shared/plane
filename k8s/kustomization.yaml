@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Enforces the plane namespace across all resources
+namespace: plane
+
+resources:
+  - 00-namespace.yaml
+  - 01-secrets.yaml
+  - 02-configmap.yaml
+  - 03-database-statefulset.yaml
+  - 04-redis-statefulset.yaml
+  - 05-rabbitmq-statefulset.yaml
+  - 06-minio-deployment.yaml
+  - 07-plane-migrator.yaml
+  - 08-plane-api.yaml
+  - 08-rocketchat.yaml
+  - 09-ingress.yaml
+  - 09-plane-worker.yaml
+  - 10-init-job.yaml
+  - 10-plane-beat.yaml
+  - 11-plane-live.yaml
+  - 12-plane-web.yaml
+  - 14-plane-admin-space.yaml

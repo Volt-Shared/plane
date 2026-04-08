@@ -1,0 +1,69 @@
+# 13-plane-admin.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plane-admin
+  namespace: plane
+spec:
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app.kubernetes.io/name: plane-admin
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plane-admin
+  namespace: plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plane-admin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plane-admin
+    spec:
+      containers:
+        - name: admin
+          image: ghcr.io/volt-shared/volt-plane-admin:latest
+          envFrom:
+            - configMapRef:
+                name: plane-config
+---
+# 14-plane-space.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: plane-space
+  namespace: plane
+spec:
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app.kubernetes.io/name: plane-space
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plane-space
+  namespace: plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plane-space
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plane-space
+    spec:
+      containers:
+        - name: space
+          image: ghcr.io/volt-shared/volt-plane-space:latest
+          envFrom:
+            - configMapRef:
+                name: plane-config
