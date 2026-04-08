@@ -2,7 +2,7 @@ name: deploy-chat-service
 
 on:
   push:
-    branches: [ preview ]
+    branches: [ master ]
     paths:
       - 'services/chat-service/**'
       - 'k8s/08-rocketchat.yaml'
@@ -50,4 +50,4 @@ jobs:
           git config user.email "actions@github.com"
           git add k8s/08-rocketchat.yaml
           git commit -m "chore(ops): sync chat-service image to ${{ steps.vars.outputs.tag }} [skip ci]" || echo "No changes"
-          git push origin preview
+          git push origin master

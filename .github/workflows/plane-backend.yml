@@ -2,7 +2,7 @@ name: deploy-backend
 
 on:
   push:
-    branches: [ preview ]
+    branches: [ master ]
     paths:
       - 'apps/api/**'
       - 'k8s/07-plane-migrator.yaml'
@@ -56,4 +56,4 @@ jobs:
           git config user.email "actions@github.com"
           git add k8s/*.yaml
           git commit -m "chore(ops): sync backend images to ${{ steps.vars.outputs.tag }} [skip ci]" || echo "No changes"
-          git push origin preview
+          git push origin master
