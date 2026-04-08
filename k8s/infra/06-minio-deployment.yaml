@@ -42,6 +42,9 @@ metadata:
   labels:
     app.kubernetes.io/name: plane-minio
     app.kubernetes.io/part-of: plane
+  annotations:
+    # Wave 1: Databases and Infra must be healthy before Apps (Wave 2) start
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: 1
   strategy:
@@ -57,7 +60,9 @@ spec:
       containers:
         - name: minio
           image: minio/minio:latest
-          command: ["server", "/export", "--console-address", ":9090"]
+          # FIX: Removed 'command' and used 'args'. 
+          # This allows the container entrypoint to run the 'minio' binary properly.
+          args: ["server", "/export", "--console-address", ":9090"]
           ports:
             - containerPort: 9000
             - containerPort: 9090
