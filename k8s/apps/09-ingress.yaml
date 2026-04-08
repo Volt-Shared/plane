@@ -1,34 +1,20 @@
 # =============================================================================
-# 09-ingress.yaml — Nginx Ingress with Expanded Service Blocks
+# 09-ingress.yaml — Nginx Ingress for Foodify (Cloudflare Issuer)
 # =============================================================================
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-foodify
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: admin@foodifytn.app 
-    privateKeySecretRef:
-      name: letsencrypt-foodify-key
-    solvers:
-    - http01:
-        ingress:
-          class: nginx
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: plane-ingress
   namespace: plane
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-foodify"
+    # UPDATED: Using your specific Cloudflare issuer
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
     
-    # Rocket.Chat Iframe Hack
+    # Rocket.Chat Iframe Fix (Required for the Plane integration to show the chat)
     nginx.ingress.kubernetes.io/configuration-snippet: |
       more_clear_headers "X-Frame-Options";
       proxy_set_header X-Frame-Options "";
@@ -48,7 +34,7 @@ spec:
     - host: plane.foodifytn.app
       http:
         paths:
-          # --- API ---
+          # --- API & Auth ---
           - path: /api
             pathType: Prefix
             backend:
@@ -107,7 +93,8 @@ metadata:
   name: plane-chat-svc-ingress
   namespace: plane
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-foodify"
+    # UPDATED: Using your specific Cloudflare issuer
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   ingressClassName: nginx
