@@ -72,6 +72,11 @@ jobs:
             ghcr.io/volt-shared/volt-plane-live:latest
 
       # --- 4. CHAT SERVICE (Context: ./services/chat-service) ---
+      # --- 4. BUILD CHAT SERVICE ---
+      - name: Patch Chat Dockerfile
+        # This edits the Dockerfile text directly to remove the 'npm ci' requirement
+        run: sed -i 's/npm ci/npm install/g' services/chat-service/Dockerfile
+
       - name: Build Chat
         uses: docker/build-push-action@v5
         with:
