@@ -36,8 +36,7 @@ jobs:
           tag="build-${{ github.run_number }}"
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
-      # --- 1. BACKEND (Context: Subfolder) ---
-      # Dockerfile.api expects to find requirements.txt in the current dir
+      # --- 1. BACKEND (Context: ./apps/api per developer docs) ---
       - name: Build Backend
         uses: docker/build-push-action@v5
         with:
@@ -48,30 +47,31 @@ jobs:
             ghcr.io/volt-shared/volt-plane-backend:${{ steps.vars.outputs.tag }}
             ghcr.io/volt-shared/volt-plane-backend:latest
 
-      # --- 2. WEB (Context: ROOT) ---
-      # Dockerfile.web expects to find apps/web/nginx/nginx.conf
+      # --- 2. WEB (Context: ROOT per developer docs) ---
       - name: Build Web
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./apps/web/Dockerfile.web
           push: true
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=https://plane.foodifytn.app
           tags: |
             ghcr.io/volt-shared/volt-plane-web:${{ steps.vars.outputs.tag }}
             ghcr.io/volt-shared/volt-plane-web:latest
 
-      # --- 3. LIVE (Context: Subfolder) ---
+      # --- 3. LIVE (Context: ROOT per developer docs) ---
       - name: Build Live
         uses: docker/build-push-action@v5
         with:
-          context: ./apps/live
+          context: .
           file: ./apps/live/Dockerfile.live
           push: true
           tags: |
             ghcr.io/volt-shared/volt-plane-live:${{ steps.vars.outputs.tag }}
             ghcr.io/volt-shared/volt-plane-live:latest
 
-      # --- 4. CHAT SERVICE (Context: Subfolder) ---
+      # --- 4. CHAT SERVICE (Context: ./services/chat-service) ---
       - name: Build Chat
         uses: docker/build-push-action@v5
         with:
@@ -83,24 +83,35 @@ jobs:
             ghcr.io/volt-shared/volt-plane-chat-service:latest
 
       # --- 5. ADMIN & SPACE (Context: ROOT) ---
-      - name: Build Admin & Space
-        run: |
-          docker build -t ghcr.io/volt-shared/volt-plane-admin:latest -f apps/admin/Dockerfile.admin .
-          docker build -t ghcr.io/volt-shared/volt-plane-space:latest -f apps/space/Dockerfile.space .
-          docker push ghcr.io/volt-shared/volt-plane-admin:latest
-          docker push ghcr.io/volt-shared/volt-plane-space:latest
+      - name: Build Admin
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/admin/Dockerfile.admin
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=https://plane.foodifytn.app
+          tags: ghcr.io/volt-shared/volt-plane-admin:latest
 
-      # --- 6. UPDATE K8S MANIFESTS (EXCLUDING MIGRATOR) ---
+      - name: Build Space
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/space/Dockerfile.space
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=https://plane.foodifytn.app
+          tags: ghcr.io/volt-shared/volt-plane-space:latest
+
+      # --- 6. UPDATE K8S MANIFESTS ---
       - name: Update K8S Manifests
         run: |
           TAG="${{ steps.vars.outputs.tag }}"
-          
-          # Update API, Worker, Beat
+          # Update Backend
           sed -i "s|image: ghcr.io/volt-shared/volt-plane-backend:.*|image: ghcr.io/volt-shared/volt-plane-backend:$TAG|g" k8s/08-plane-api.yaml
           sed -i "s|image: ghcr.io/volt-shared/volt-plane-backend:.*|image: ghcr.io/volt-shared/volt-plane-backend:$TAG|g" k8s/09-plane-worker.yaml
           sed -i "s|image: ghcr.io/volt-shared/volt-plane-backend:.*|image: ghcr.io/volt-shared/volt-plane-backend:$TAG|g" k8s/10-plane-beat.yaml
-          
-          # Update Frontend/Live/Chat
+          # Update Others
           sed -i "s|image: ghcr.io/volt-shared/volt-plane-web:.*|image: ghcr.io/volt-shared/volt-plane-web:$TAG|g" k8s/12-plane-web.yaml
           sed -i "s|image: ghcr.io/volt-shared/volt-plane-live:.*|image: ghcr.io/volt-shared/volt-plane-live:$TAG|g" k8s/11-plane-live.yaml
           sed -i "s|image: ghcr.io/volt-shared/volt-plane-chat-service:.*|image: ghcr.io/volt-shared/volt-plane-chat-service:$TAG|g" k8s/08-rocketchat.yaml
@@ -111,9 +122,8 @@ jobs:
           git config user.name "volt-bot"
           git config user.email "actions@github.com"
           git add k8s/*.yaml
-          
           if git diff --cached --quiet; then
-            echo "No manifest changes detected."
+            echo "No changes."
           else
             git commit -m "chore(ops): deploy foodify release ${{ steps.vars.outputs.tag }} [skip ci]"
             git push origin ${{ github.ref_name }}
