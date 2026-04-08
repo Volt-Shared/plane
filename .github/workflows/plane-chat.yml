@@ -2,7 +2,7 @@ name: deploy-chat-service
 
 on:
   push:
-    branches: [ master ]
+    branches: [ preview ]
     paths:
       - 'services/chat-service/**'
       - 'k8s/08-rocketchat.yaml'

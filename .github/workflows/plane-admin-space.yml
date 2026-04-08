@@ -2,7 +2,7 @@ name: deploy-admin-space
 
 on:
   push:
-    branches: [ master ]
+    branches: [ preview ]
     paths:
       - 'apps/admin/**'
       - 'apps/space/**'

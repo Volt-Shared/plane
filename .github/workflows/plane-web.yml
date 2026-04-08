@@ -2,7 +2,7 @@ name: deploy-web
 
 on:
   push:
-    branches: [ master ]
+    branches: [ preview ]
     paths:
       - 'apps/web/**'
       - 'k8s/12-plane-web.yaml'

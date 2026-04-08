@@ -2,7 +2,7 @@ name: deploy-live
 
 on:
   push:
-    branches: [ master ]
+    branches: [ preview ]
     paths:
       - 'apps/live/**'
       - 'k8s/11-plane-live.yaml'

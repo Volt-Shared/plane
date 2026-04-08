@@ -2,7 +2,7 @@ name: deploy-backend
 
 on:
   push:
-    branches: [ master ]
+    branches: [ preview ]
     paths:
       - 'apps/api/**'
       - 'k8s/07-plane-migrator.yaml'
