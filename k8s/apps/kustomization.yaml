@@ -11,3 +11,17 @@ resources:
   - 11-plane-live.yaml
   - 12-plane-web.yaml
   - 14-plane-admin-space.yaml
+
+patches:
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/imagePullSecrets
+        value: [{name: ghcr-pull-secret}]
+  - target:
+      kind: Job
+    patch: |-
+      - op: add
+        path: /spec/template/spec/imagePullSecrets
+        value: [{name: ghcr-pull-secret}]
