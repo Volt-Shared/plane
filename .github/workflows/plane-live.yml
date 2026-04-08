@@ -1,11 +1,13 @@
 name: deploy-live
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [ master, preview ]
     paths:
       - 'apps/live/**'
       - 'k8s/11-plane-live.yaml'
+      - '.github/workflows/plane-live.yml'
 
 jobs:
   build-push-sync:
@@ -49,5 +51,5 @@ jobs:
           git config user.name "volt-bot"
           git config user.email "actions@github.com"
           git add k8s/11-plane-live.yaml
-          git commit -m "chore(ops): sync live image to ${{ steps.vars.outputs.tag }} [skip ci]" || echo "No changes"
-          git push origin master
+          git commit -m "chore(ops): sync live to ${{ steps.vars.outputs.tag }} [skip ci]" || echo "No changes"
+          git push origin ${{ github.ref_name }}

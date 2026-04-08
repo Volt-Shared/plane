@@ -1,11 +1,13 @@
 name: deploy-web
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [ master, preview ]
     paths:
       - 'apps/web/**'
       - 'k8s/12-plane-web.yaml'
+      - '.github/workflows/plane-web.yml'
 
 jobs:
   build-push-sync:
@@ -49,5 +51,5 @@ jobs:
           git config user.name "volt-bot"
           git config user.email "actions@github.com"
           git add k8s/12-plane-web.yaml
-          git commit -m "chore(ops): sync web image to ${{ steps.vars.outputs.tag }} [skip ci]" || echo "No changes"
-          git push origin master
+          git commit -m "chore(ops): sync web to ${{ steps.vars.outputs.tag }} [skip ci]" || echo "No changes"
+          git push origin ${{ github.ref_name }}
