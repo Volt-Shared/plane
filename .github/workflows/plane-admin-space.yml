@@ -28,7 +28,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./apps/admin/Dockerfile
+          file: ./apps/admin/Dockerfile.admin
           push: true
           tags: ghcr.io/volt-shared/volt-plane-admin:latest
 
@@ -36,7 +36,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./apps/space/Dockerfile
+          file: ./apps/space/Dockerfile.space
           push: true
           tags: ghcr.io/volt-shared/volt-plane-space:latest
 
@@ -44,5 +44,6 @@ jobs:
         run: |
           git config user.name "volt-bot"
           git config user.email "actions@github.com"
+          git add k8s/14-plane-admin-space.yaml
           git commit -am "chore(ops): rebuild admin/space images [skip ci]" || echo "No changes"
-          git push origin master
+          git push origin preview

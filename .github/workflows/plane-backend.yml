@@ -37,7 +37,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./apps/api/Dockerfile
+          file: ./apps/api/Dockerfile.api
           push: true
           tags: |
             ${{ steps.vars.outputs.image }}
@@ -56,4 +56,4 @@ jobs:
           git config user.email "actions@github.com"
           git add k8s/*.yaml
           git commit -m "chore(ops): sync backend images to ${{ steps.vars.outputs.tag }} [skip ci]" || echo "No changes"
-          git push origin master
+          git push origin preview
