@@ -133,7 +133,7 @@ spec:
     spec:
       containers:
         - name: chat-service
-          image: YOUR_REGISTRY/plane-chat-service:latest
+          image: ghcr.io/volt-shared/volt-plane-chat-service:latest
           ports:
             - containerPort: 4000
           env:

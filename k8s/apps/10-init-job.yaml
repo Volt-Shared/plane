@@ -160,7 +160,7 @@ spec:
           command: ["sh", "-c", "until nc -z plane-api 8000; do sleep 3; done; sleep 10"]
       containers:
         - name: init
-          image: YOUR_REGISTRY/plane-api:latest
+          image: ghcr.io/volt-shared/volt-plane-backend:latest
           command:
             - python
             - manage.py
