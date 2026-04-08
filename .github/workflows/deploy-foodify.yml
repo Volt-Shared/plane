@@ -1,0 +1,123 @@
+name: universal-foodify-deployment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master, preview ]
+    paths:
+      - 'apps/**'
+      - 'services/chat-service/**'
+      - 'k8s/**'
+      - '.github/workflows/deploy-foodify.yml'
+
+jobs:
+  build-and-sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.volt_infra_pat }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.volt_infra_pat }}
+
+      - name: Set Release Tag
+        id: vars
+        run: |
+          tag="build-${{ github.run_number }}"
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+      # --- 1. BUILD BACKEND (API, Worker, Beat) ---
+      - name: Build Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/api
+          file: ./apps/api/Dockerfile.api
+          push: true
+          tags: |
+            ghcr.io/volt-shared/volt-plane-backend:${{ steps.vars.outputs.tag }}
+            ghcr.io/volt-shared/volt-plane-backend:latest
+
+      # --- 2. BUILD WEB ---
+      - name: Build Web
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/web
+          file: ./apps/web/Dockerfile.web
+          push: true
+          tags: |
+            ghcr.io/volt-shared/volt-plane-web:${{ steps.vars.outputs.tag }}
+            ghcr.io/volt-shared/volt-plane-web:latest
+
+      # --- 3. BUILD LIVE ---
+      - name: Build Live
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/live
+          file: ./apps/live/Dockerfile.live
+          push: true
+          tags: |
+            ghcr.io/volt-shared/volt-plane-live:${{ steps.vars.outputs.tag }}
+            ghcr.io/volt-shared/volt-plane-live:latest
+
+      # --- 4. BUILD CHAT SERVICE ---
+      - name: Build Chat
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/chat-service
+          file: ./services/chat-service/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/volt-shared/volt-plane-chat-service:${{ steps.vars.outputs.tag }}
+            ghcr.io/volt-shared/volt-plane-chat-service:latest
+
+      # --- 5. BUILD ADMIN & SPACE ---
+      - name: Build Admin & Space
+        run: |
+          docker build -t ghcr.io/volt-shared/volt-plane-admin:latest -f apps/admin/Dockerfile.admin ./apps/admin
+          docker build -t ghcr.io/volt-shared/volt-plane-space:latest -f apps/space/Dockerfile.space ./apps/space
+          docker push ghcr.io/volt-shared/volt-plane-admin:latest
+          docker push ghcr.io/volt-shared/volt-plane-space:latest
+
+      # --- 6. UPDATE K8S MANIFESTS (EXCLUDING MIGRATOR) ---
+      - name: Update K8S Manifests
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          
+          # Update Backend Tags (API, Worker, Beat)
+          # We SKIP 07-plane-migrator.yaml here as per your request
+          sed -i "s|image: ghcr.io/volt-shared/volt-plane-backend:.*|image: ghcr.io/volt-shared/volt-plane-backend:$TAG|g" k8s/08-plane-api.yaml
+          sed -i "s|image: ghcr.io/volt-shared/volt-plane-backend:.*|image: ghcr.io/volt-shared/volt-plane-backend:$TAG|g" k8s/09-plane-worker.yaml
+          sed -i "s|image: ghcr.io/volt-shared/volt-plane-backend:.*|image: ghcr.io/volt-shared/volt-plane-backend:$TAG|g" k8s/10-plane-beat.yaml
+          
+          # Update Web Tag
+          sed -i "s|image: ghcr.io/volt-shared/volt-plane-web:.*|image: ghcr.io/volt-shared/volt-plane-web:$TAG|g" k8s/12-plane-web.yaml
+          
+          # Update Live Tag
+          sed -i "s|image: ghcr.io/volt-shared/volt-plane-live:.*|image: ghcr.io/volt-shared/volt-plane-live:$TAG|g" k8s/11-plane-live.yaml
+          
+          # Update Chat Tag
+          sed -i "s|image: ghcr.io/volt-shared/volt-plane-chat-service:.*|image: ghcr.io/volt-shared/volt-plane-chat-service:$TAG|g" k8s/08-rocketchat.yaml
+
+      # --- 7. FINAL PUSH ---
+      - name: Commit and Push
+        run: |
+          git config user.name "volt-bot"
+          git config user.email "actions@github.com"
+          git add k8s/*.yaml
+          
+          if git diff --cached --quiet; then
+            echo "No manifest changes detected."
+          else
+            git commit -m "chore(ops): deploy foodify release ${{ steps.vars.outputs.tag }} [skip ci]"
+            git push origin ${{ github.ref_name }}
+          fi
