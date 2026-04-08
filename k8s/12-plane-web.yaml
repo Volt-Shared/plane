@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: ghcr.io/volt-shared/volt-plane-web:web-2
+          image: ghcr.io/volt-shared/volt-plane-web:build-5
           ports:
             - containerPort: 3000
           envFrom:

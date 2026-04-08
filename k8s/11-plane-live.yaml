@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
         - name: live
-          image: ghcr.io/volt-shared/volt-plane-live:latest
+          image: ghcr.io/volt-shared/volt-plane-live:build-5
           ports:
             - containerPort: 3000
           envFrom:

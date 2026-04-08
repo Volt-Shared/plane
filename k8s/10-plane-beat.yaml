@@ -24,7 +24,7 @@ spec:
           command: ["sh", "-c", "until nc -z plane-api 8000; do sleep 3; done"]
       containers:
         - name: beat
-          image: ghcr.io/volt-shared/volt-plane-backend:latest
+          image: ghcr.io/volt-shared/volt-plane-backend:build-5
           command: ["./bin/docker-entrypoint-beat.sh"]
           envFrom:
             - configMapRef:

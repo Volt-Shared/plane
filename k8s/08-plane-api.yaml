@@ -41,7 +41,7 @@ spec:
           command: ["sh", "-c", "until nc -z plane-redis 6379; do sleep 2; done"]
       containers:
         - name: api
-          image: ghcr.io/volt-shared/volt-plane-backend:latest
+          image: ghcr.io/volt-shared/volt-plane-backend:build-5
           command: ["./bin/docker-entrypoint-api.sh"]
           ports:
             - containerPort: 8000
