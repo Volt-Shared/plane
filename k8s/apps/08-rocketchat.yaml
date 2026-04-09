@@ -1,3 +1,29 @@
+---
+# Service for Rocket.Chat UI
+apiVersion: v1
+kind: Service
+metadata:
+  name: plane-rocketchat
+  namespace: plane
+spec:
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app.kubernetes.io/name: plane-rocketchat
+---
+# Service for the Foodify Chat Integration
+apiVersion: v1
+kind: Service
+metadata:
+  name: plane-chat-service
+  namespace: plane
+spec:
+  ports:
+    - port: 4000
+      targetPort: 4000
+  selector:
+    app.kubernetes.io/name: plane-chat-service
 apiVersion: v1
 kind: Service
 metadata:
