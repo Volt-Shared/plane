@@ -1,8 +1,6 @@
 # =============================================================================
-# 08-rocketchat.yaml — Rocket.Chat + MongoDB + Chat-Service
+# 08-rocketchat.yaml â€” Rocket.Chat + MongoDB + Chat-Service
 # =============================================================================
-
-# 1. Service for Rocket.Chat UI
 apiVersion: v1
 kind: Service
 metadata:
@@ -15,7 +13,6 @@ spec:
   selector:
     app.kubernetes.io/name: plane-rocketchat
 ---
-# 2. Service for the Foodify Chat Integration
 apiVersion: v1
 kind: Service
 metadata:
@@ -28,7 +25,6 @@ spec:
   selector:
     app.kubernetes.io/name: plane-chat-service
 ---
-# 3. Service for MongoDB (Internal Only)
 apiVersion: v1
 kind: Service
 metadata:
@@ -41,7 +37,6 @@ spec:
   selector:
     app.kubernetes.io/name: plane-chat-mongodb
 ---
-# 4. MongoDB Database
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -76,7 +71,6 @@ spec:
           requests:
             storage: 20Gi
 ---
-# 5. Rocket.Chat Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -107,7 +101,6 @@ spec:
             - name: PORT
               value: "3000"
 ---
-# 6. Foodify Chat Service Integration
 apiVersion: apps/v1
 kind: Deployment
 metadata:
