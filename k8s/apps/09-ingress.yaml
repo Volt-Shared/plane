@@ -1,6 +1,8 @@
 # =============================================================================
-# 09-ingress.yaml — Nginx Ingress for Foodify (Fixed Routing & Rewrites)
+# 09-ingress.yaml — Final "Bullet-Proof" Ingress Configuration
 # =============================================================================
+
+# --- 1. CORE PLANE INGRESS (Handles UI, API, Storage) ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -12,19 +14,76 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
-    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - plane.foodifytn.app
+      secretName: plane-tls-prod
+  rules:
+    - host: plane.foodifytn.app
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-api
+                port:
+                  number: 8000
+          - path: /auth
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-api
+                port:
+                  number: 8000
+          - path: /plane-storage
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-minio
+                port:
+                  number: 9000
+          - path: /live
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-live
+                port:
+                  number: 3000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plane-web
+                port:
+                  number: 3000
 
-    # Boss-Mode Iframe Fix
+---
+
+# --- 2. CHAT & SSO INGRESS (Dedicated to Rocket.Chat Logic) ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plane-chat-svc-ingress
+  namespace: plane
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    
+    # Boss-Mode Iframe Fix: Essential for the Plane Iframe to work
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_hide_header X-Frame-Options;
       proxy_hide_header Content-Security-Policy;
       add_header X-Frame-Options "SAMEORIGIN" always;
       add_header Content-Security-Policy "frame-ancestors 'self' https://plane.foodifytn.app;" always;
 
-    # Link Rewrites: This converts /channel/volt -> /chat/channel/volt before sending to RC
+    # Internal Rewrite Logic: Converts /channel/volt -> /chat/channel/volt
+    # This prevents the "Unknown path" error by aligning with Rocket.Chat's ROOT_URL
     nginx.ingress.kubernetes.io/server-snippet: |
-      location ~* ^/(channel|group|direct) {
-        rewrite ^/(.*)$ /chat/$1 break;
+      location ~* ^/(channel|group|direct|chat) {
+        rewrite ^/(channel|group|direct)(.*)$ /chat/$1$2 break;
         proxy_pass http://plane-rocketchat.plane.svc.cluster.local:3000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -42,85 +101,7 @@ spec:
     - host: plane.foodifytn.app
       http:
         paths:
-          # --- Rocket.Chat Base Path ---
-          - path: /chat
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: plane-rocketchat
-                port:
-                  number: 3000
-
-          # --- API & Auth ---
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: plane-api
-                port:
-                  number: 8000
-          - path: /auth
-            pathType: Prefix
-            backend:
-              service:
-                name: plane-api
-                port:
-                  number: 8000
-
-          # --- MinIO Storage ---
-          - path: /plane-storage
-            pathType: Prefix
-            backend:
-              service:
-                name: plane-minio
-                port:
-                  number: 9000
-
-          # --- Live / WebSockets ---
-          - path: /live
-            pathType: Prefix
-            backend:
-              service:
-                name: plane-live
-                port:
-                  number: 3000
-
-          # --- Frontend (Catch-all) ---
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: plane-web
-                port:
-                  number: 3000
----
-# --- Chat-Service Ingress (Separate for Rewrite Target) ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: plane-chat-svc-ingress
-  namespace: plane
-  annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-    
-    # Same Header Security for Auth Flow
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_hide_header X-Frame-Options;
-      proxy_hide_header Content-Security-Policy;
-      add_header X-Frame-Options "SAMEORIGIN" always;
-      add_header Content-Security-Policy "frame-ancestors 'self' https://plane.foodifytn.app;" always;
-
-spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - plane.foodifytn.app
-      secretName: plane-tls-prod
-  rules:
-    - host: plane.foodifytn.app
-      http:
-        paths:
+          # Match the SSO auth flow
           - path: /chat-svc(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
@@ -128,3 +109,11 @@ spec:
                 name: plane-chat-service
                 port:
                   number: 4000
+          # Match the actual chat paths (This prevents Plane-Web from stealing traffic)
+          - path: /(channel|group|direct|chat)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: plane-rocketchat
+                port:
+                  number: 3000
