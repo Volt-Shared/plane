@@ -16,8 +16,8 @@ metadata:
     
     # Rocket.Chat Iframe Fix (Required for the Plane integration to show the chat)
     nginx.ingress.kubernetes.io/configuration-snippet: |
-      more_clear_headers "X-Frame-Options";
-      proxy_set_header X-Frame-Options "";
+      proxy_hide_header X-Frame-Options;
+      add_header X-Frame-Options "SAMEORIGIN" always;
     
     # Link Rewrites for Chat
     nginx.ingress.kubernetes.io/server-snippet: |
