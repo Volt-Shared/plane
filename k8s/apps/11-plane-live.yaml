@@ -1,11 +1,18 @@
+# =============================================================================
+# 11-plane-live.yaml — Real-time WebSockets Service
+# =============================================================================
 apiVersion: v1
 kind: Service
 metadata:
   name: plane-live
   namespace: plane
+  labels:
+    app.kubernetes.io/name: plane-live
 spec:
   ports:
     - port: 3000
+      targetPort: 3000
+      name: http
   selector:
     app.kubernetes.io/name: plane-live
 ---
@@ -15,6 +22,7 @@ metadata:
   name: plane-live
   namespace: plane
   annotations:
+    # Wave 3: Starts after the DB is migrated
     argocd.argoproj.io/sync-wave: "3"
 spec:
   replicas: 1
@@ -29,6 +37,17 @@ spec:
       containers:
         - name: live
           image: ghcr.io/volt-shared/volt-plane-live:latest
+          ports:
+            - containerPort: 3000
           envFrom:
-            - configMapRef: { name: plane-config }
-            - secretRef: { name: plane-secrets }
+            - configMapRef:
+                name: plane-config
+            - secretRef:
+                name: plane-secrets
+          env:
+            # FIX: Explicitly adding the missing required variable
+            - name: API_BASE_URL
+              value: "http://plane-api:8000"
+            # Optional but recommended for Plane Live
+            - name: INSTANCE_ADMIN_ID
+              value: "admin@foodifytn.app"
