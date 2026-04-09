@@ -12,18 +12,20 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/use-regex: "true" # THIS IS THE KEY
     
-    # Boss-Mode Iframe Fix: Strips backend headers and injects SAMEORIGIN + CSP
+    # Boss-Mode Iframe Fix
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_hide_header X-Frame-Options;
       proxy_hide_header Content-Security-Policy;
       add_header X-Frame-Options "SAMEORIGIN" always;
       add_header Content-Security-Policy "frame-ancestors 'self' https://plane.foodifytn.app;" always;
     
-    # Link Rewrites for Chat
+    # Link Rewrites (The logic that fixes the 404)
     nginx.ingress.kubernetes.io/server-snippet: |
-      location ~ ^/(channel|group|direct)/(.*)$ {
-        rewrite ^/(channel|group|direct)/(.*)$ /chat/$1/$2 last;
+      location ~* ^/(channel|group|direct) {
+        rewrite ^/(.*)$ /chat/$1 break;
+        proxy_pass http://plane-rocketchat.plane.svc.cluster.local:3000;
       }
 spec:
   ingressClassName: nginx
