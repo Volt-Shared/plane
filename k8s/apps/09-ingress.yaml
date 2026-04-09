@@ -1,5 +1,5 @@
 # =============================================================================
-# 09-ingress.yaml — Nginx Ingress for Foodify (Fixed Routing)
+# 09-ingress.yaml — Nginx Ingress for Foodify (Fixed Routing & Rewrites)
 # =============================================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -14,18 +14,22 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
     nginx.ingress.kubernetes.io/use-regex: "true"
 
-    # Boss-Mode Iframe Fix: Strips backend headers and injects SAMEORIGIN + CSP
+    # Boss-Mode Iframe Fix
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_hide_header X-Frame-Options;
       proxy_hide_header Content-Security-Policy;
       add_header X-Frame-Options "SAMEORIGIN" always;
       add_header Content-Security-Policy "frame-ancestors 'self' https://plane.foodifytn.app;" always;
 
-    # Link Rewrites (Forces UI paths to the /chat subpath in Rocket.Chat)
+    # Link Rewrites: This converts /channel/volt -> /chat/channel/volt before sending to RC
     nginx.ingress.kubernetes.io/server-snippet: |
       location ~* ^/(channel|group|direct) {
         rewrite ^/(.*)$ /chat/$1 break;
         proxy_pass http://plane-rocketchat.plane.svc.cluster.local:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
       }
 
 spec:
@@ -38,28 +42,7 @@ spec:
     - host: plane.foodifytn.app
       http:
         paths:
-          # --- EXPLICIT CHAT ROUTING (Kills the 404) ---
-          - path: /channel
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: plane-rocketchat
-                port:
-                  number: 3000
-          - path: /group
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: plane-rocketchat
-                port:
-                  number: 3000
-          - path: /direct
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: plane-rocketchat
-                port:
-                  number: 3000
+          # --- Rocket.Chat Base Path ---
           - path: /chat
             pathType: ImplementationSpecific
             backend:
