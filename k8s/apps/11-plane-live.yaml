@@ -3,12 +3,9 @@ kind: Service
 metadata:
   name: plane-live
   namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-live
 spec:
   ports:
     - port: 3000
-      targetPort: 3000
   selector:
     app.kubernetes.io/name: plane-live
 ---
@@ -17,6 +14,8 @@ kind: Deployment
 metadata:
   name: plane-live
   namespace: plane
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   replicas: 1
   selector:
@@ -29,11 +28,7 @@ spec:
     spec:
       containers:
         - name: live
-          image: ghcr.io/volt-shared/volt-plane-live:build-5
-          ports:
-            - containerPort: 3000
+          image: ghcr.io/volt-shared/volt-plane-live:latest
           envFrom:
-            - configMapRef:
-                name: plane-config
-            - secretRef:
-                name: plane-secrets
+            - configMapRef: { name: plane-config }
+            - secretRef: { name: plane-secrets }

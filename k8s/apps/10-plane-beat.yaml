@@ -3,9 +3,8 @@ kind: Deployment
 metadata:
   name: plane-beat
   namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-beat
-    app.kubernetes.io/part-of: plane
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   replicas: 1
   strategy:
@@ -24,13 +23,11 @@ spec:
           command: ["sh", "-c", "until nc -z plane-api 8000; do sleep 3; done"]
       containers:
         - name: beat
-          image: ghcr.io/volt-shared/volt-plane-backend:build-5
+          image: ghcr.io/volt-shared/volt-plane-backend:latest
           command: ["./bin/docker-entrypoint-beat.sh"]
           envFrom:
-            - configMapRef:
-                name: plane-config
-            - secretRef:
-                name: plane-secrets
+            - configMapRef: { name: plane-config }
+            - secretRef: { name: plane-secrets }
           env:
             - name: DATABASE_URL
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@plane-db:5432/$(POSTGRES_DB)"

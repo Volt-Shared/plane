@@ -3,12 +3,9 @@ kind: Service
 metadata:
   name: plane-web
   namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-web
 spec:
   ports:
     - port: 3000
-      targetPort: 3000
   selector:
     app.kubernetes.io/name: plane-web
 ---
@@ -17,8 +14,10 @@ kind: Deployment
 metadata:
   name: plane-web
   namespace: plane
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: plane-web
@@ -29,9 +28,6 @@ spec:
     spec:
       containers:
         - name: web
-          image: ghcr.io/volt-shared/volt-plane-web:build-5
-          ports:
-            - containerPort: 3000
+          image: ghcr.io/volt-shared/volt-plane-web:latest
           envFrom:
-            - configMapRef:
-                name: plane-config
+            - configMapRef: { name: plane-config }

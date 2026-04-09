@@ -1,6 +1,3 @@
-# =============================================================================
-# 08-rocketchat.yaml — Rocket.Chat + MongoDB + Chat-Service (Foodify)
-# =============================================================================
 apiVersion: v1
 kind: Service
 metadata:
@@ -10,7 +7,6 @@ spec:
   clusterIP: None
   ports:
     - port: 27017
-      targetPort: 27017
   selector:
     app.kubernetes.io/name: plane-chat-mongodb
 ---
@@ -39,16 +35,6 @@ spec:
           volumeMounts:
             - name: mongodata
               mountPath: /data/db
-          readinessProbe:
-            exec:
-              command:
-                - mongosh
-                - --quiet
-                - --eval
-                - "try { rs.status().ok } catch(e) { rs.initiate({_id:'rs0', members:[{_id:0, host:'plane-chat-mongodb-0.plane-chat-mongodb.plane.svc.cluster.local:27017'}]}); 1; }"
-          livenessProbe:
-            exec:
-              command: ["mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
   volumeClaimTemplates:
     - metadata:
         name: mongodata
@@ -63,6 +49,8 @@ kind: Deployment
 metadata:
   name: plane-rocketchat
   namespace: plane
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   replicas: 1
   strategy:
@@ -75,52 +63,24 @@ spec:
       labels:
         app.kubernetes.io/name: plane-rocketchat
     spec:
-      initContainers:
-        - name: wait-for-mongo
-          image: busybox:1.36
-          command: ["sh", "-c", "until nc -z plane-chat-mongodb 27017; do sleep 3; done"]
       containers:
         - name: rocketchat
           image: registry.rocket.chat/rocketchat/rocket.chat:7.5.1
-          ports:
-            - containerPort: 3000
           env:
             - name: MONGO_URL
               value: "mongodb://plane-chat-mongodb-0.plane-chat-mongodb.plane.svc.cluster.local:27017/rocketchat?replicaSet=rs0"
-            - name: MONGO_OPLOG_URL
-              value: "mongodb://plane-chat-mongodb-0.plane-chat-mongodb.plane.svc.cluster.local:27017/local?replicaSet=rs0"
             - name: ROOT_URL
               value: "https://plane.foodifytn.app/chat"
             - name: PORT
               value: "3000"
-            - name: ADMIN_USERNAME
-              valueFrom:
-                secretKeyRef: { name: plane-secrets, key: ROCKETCHAT_ADMIN_USERNAME }
-            - name: ADMIN_PASS
-              valueFrom:
-                secretKeyRef: { name: plane-secrets, key: ROCKETCHAT_ADMIN_PASSWORD }
-            - name: ADMIN_EMAIL
-              valueFrom:
-                secretKeyRef: { name: plane-secrets, key: ROCKETCHAT_ADMIN_EMAIL }
-            # SSO Settings for Foodify
-            - name: OVERWRITE_SETTING_Accounts_iframe_enabled
-              value: "true"
-            - name: OVERWRITE_SETTING_Accounts_iframe_url
-              value: "https://plane.foodifytn.app/chat-svc/sso/rc-iframe-auth"
-            - name: OVERWRITE_SETTING_Accounts_Iframe_api_url
-              value: "https://plane.foodifytn.app/chat-svc/sso/rc-iframe-auth"
-            - name: OVERWRITE_SETTING_Accounts_Iframe_api_method
-              value: "GET"
-            - name: OVERWRITE_SETTING_CORS_Origin
-              value: "*"
-            - name: OVERWRITE_SETTING_HTTP_X_Frame_Options
-              value: ""
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: plane-chat-service
   namespace: plane
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   replicas: 1
   selector:
@@ -134,19 +94,11 @@ spec:
       containers:
         - name: chat-service
           image: ghcr.io/volt-shared/volt-plane-chat-service:latest
-          ports:
-            - containerPort: 4000
           env:
-            - name: NODE_ENV
-              value: "production"
-            - name: ROCKETCHAT_ROOT_URL
-              value: "https://plane.foodifytn.app/chat"
             - name: ROCKETCHAT_URL
               value: "http://plane-rocketchat:3000/chat"
             - name: PLANE_API_URL
               value: "http://plane-api:8000"
-            # Pulled from Secret/Config
-            - name: ROCKETCHAT_JWT_SECRET
-              valueFrom: { secretKeyRef: { name: plane-secrets, key: ROCKETCHAT_JWT_SECRET } }
-            - name: PLANE_WORKSPACE_SLUG
-              valueFrom: { configMapKeyRef: { name: plane-config, key: PLANE_WORKSPACE_SLUG } }
+          envFrom:
+            - secretRef: { name: plane-secrets }
+            - configMapRef: { name: plane-config }

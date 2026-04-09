@@ -1,4 +1,3 @@
-# 13-plane-admin.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -7,7 +6,6 @@ metadata:
 spec:
   ports:
     - port: 3000
-      targetPort: 3000
   selector:
     app.kubernetes.io/name: plane-admin
 ---
@@ -16,6 +14,8 @@ kind: Deployment
 metadata:
   name: plane-admin
   namespace: plane
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   replicas: 1
   selector:
@@ -30,10 +30,8 @@ spec:
         - name: admin
           image: ghcr.io/volt-shared/volt-plane-admin:latest
           envFrom:
-            - configMapRef:
-                name: plane-config
+            - configMapRef: { name: plane-config }
 ---
-# 14-plane-space.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -42,7 +40,6 @@ metadata:
 spec:
   ports:
     - port: 3000
-      targetPort: 3000
   selector:
     app.kubernetes.io/name: plane-space
 ---
@@ -51,6 +48,8 @@ kind: Deployment
 metadata:
   name: plane-space
   namespace: plane
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   replicas: 1
   selector:
@@ -65,5 +64,4 @@ spec:
         - name: space
           image: ghcr.io/volt-shared/volt-plane-space:latest
           envFrom:
-            - configMapRef:
-                name: plane-config
+            - configMapRef: { name: plane-config }

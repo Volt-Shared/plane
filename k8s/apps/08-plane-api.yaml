@@ -3,14 +3,10 @@ kind: Service
 metadata:
   name: plane-api
   namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-api
-    app.kubernetes.io/part-of: plane
 spec:
   ports:
     - port: 8000
       targetPort: 8000
-      protocol: TCP
   selector:
     app.kubernetes.io/name: plane-api
 ---
@@ -19,11 +15,10 @@ kind: Deployment
 metadata:
   name: plane-api
   namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-api
-    app.kubernetes.io/part-of: plane
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: plane-api
@@ -41,21 +36,13 @@ spec:
           command: ["sh", "-c", "until nc -z plane-redis 6379; do sleep 2; done"]
       containers:
         - name: api
-          image: ghcr.io/volt-shared/volt-plane-backend:build-5
+          image: ghcr.io/volt-shared/volt-plane-backend:latest
           command: ["./bin/docker-entrypoint-api.sh"]
           ports:
             - containerPort: 8000
           envFrom:
-            - configMapRef:
-                name: plane-config
-            - secretRef:
-                name: plane-secrets
+            - configMapRef: { name: plane-config }
+            - secretRef: { name: plane-secrets }
           env:
             - name: DATABASE_URL
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@plane-db:5432/$(POSTGRES_DB)"
-          readinessProbe:
-            httpGet:
-              path: /api/users/me/
-              port: 8000
-            initialDelaySeconds: 30
-            periodSeconds: 15

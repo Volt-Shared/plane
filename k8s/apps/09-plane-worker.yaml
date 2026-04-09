@@ -3,11 +3,10 @@ kind: Deployment
 metadata:
   name: plane-worker
   namespace: plane
-  labels:
-    app.kubernetes.io/name: plane-worker
-    app.kubernetes.io/part-of: plane
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: plane-worker
@@ -22,13 +21,11 @@ spec:
           command: ["sh", "-c", "until nc -z plane-api 8000; do sleep 3; done"]
       containers:
         - name: worker
-          image: ghcr.io/volt-shared/volt-plane-backend:build-5
+          image: ghcr.io/volt-shared/volt-plane-backend:latest
           command: ["./bin/docker-entrypoint-worker.sh"]
           envFrom:
-            - configMapRef:
-                name: plane-config
-            - secretRef:
-                name: plane-secrets
+            - configMapRef: { name: plane-config }
+            - secretRef: { name: plane-secrets }
           env:
             - name: DATABASE_URL
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@plane-db:5432/$(POSTGRES_DB)"
