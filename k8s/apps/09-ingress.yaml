@@ -1,5 +1,5 @@
 # =============================================================================
-# 09-ingress.yaml — Nginx Ingress for Foodify (Cloudflare Issuer)
+# 09-ingress.yaml — Nginx Ingress for Foodify (Fixed Routing)
 # =============================================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -12,21 +12,22 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
-    nginx.ingress.kubernetes.io/use-regex: "true" # THIS IS THE KEY
-    
-    # Boss-Mode Iframe Fix
+    nginx.ingress.kubernetes.io/use-regex: "true"
+
+    # Boss-Mode Iframe Fix: Strips backend headers and injects SAMEORIGIN + CSP
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_hide_header X-Frame-Options;
       proxy_hide_header Content-Security-Policy;
       add_header X-Frame-Options "SAMEORIGIN" always;
       add_header Content-Security-Policy "frame-ancestors 'self' https://plane.foodifytn.app;" always;
-    
-    # Link Rewrites (The logic that fixes the 404)
+
+    # Link Rewrites (Forces UI paths to the /chat subpath in Rocket.Chat)
     nginx.ingress.kubernetes.io/server-snippet: |
       location ~* ^/(channel|group|direct) {
         rewrite ^/(.*)$ /chat/$1 break;
         proxy_pass http://plane-rocketchat.plane.svc.cluster.local:3000;
       }
+
 spec:
   ingressClassName: nginx
   tls:
@@ -37,6 +38,36 @@ spec:
     - host: plane.foodifytn.app
       http:
         paths:
+          # --- EXPLICIT CHAT ROUTING (Kills the 404) ---
+          - path: /channel
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: plane-rocketchat
+                port:
+                  number: 3000
+          - path: /group
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: plane-rocketchat
+                port:
+                  number: 3000
+          - path: /direct
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: plane-rocketchat
+                port:
+                  number: 3000
+          - path: /chat
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: plane-rocketchat
+                port:
+                  number: 3000
+
           # --- API & Auth ---
           - path: /api
             pathType: Prefix
@@ -71,15 +102,6 @@ spec:
                 port:
                   number: 3000
 
-          # --- Rocket.Chat ---
-          - path: /chat
-            pathType: Prefix
-            backend:
-              service:
-                name: plane-rocketchat
-                port:
-                  number: 3000
-
           # --- Frontend (Catch-all) ---
           - path: /
             pathType: Prefix
@@ -99,8 +121,7 @@ metadata:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     
-    # Boss-Mode Iframe Fix: Strips backend headers and injects SAMEORIGIN + CSP
-    # This ensures the SSO auth frame is allowed to load
+    # Same Header Security for Auth Flow
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_hide_header X-Frame-Options;
       proxy_hide_header Content-Security-Policy;
