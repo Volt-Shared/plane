@@ -1,6 +1,3 @@
-# =============================================================================
-# 11-plane-live.yaml — Real-time WebSockets Service
-# =============================================================================
 apiVersion: v1
 kind: Service
 metadata:
@@ -22,7 +19,6 @@ metadata:
   name: plane-live
   namespace: plane
   annotations:
-    # Wave 3: Starts after the DB is migrated
     argocd.argoproj.io/sync-wave: "3"
 spec:
   replicas: 1
@@ -45,9 +41,5 @@ spec:
             - secretRef:
                 name: plane-secrets
           env:
-            # FIX: Explicitly adding the missing required variable
             - name: API_BASE_URL
               value: "http://plane-api:8000"
-            # Optional but recommended for Plane Live
-            - name: INSTANCE_ADMIN_ID
-              value: "admin@foodifytn.app"
