@@ -62,7 +62,7 @@ spec:
 
 ---
 
-# --- 2. CHAT & SSO INGRESS (Dedicated to Rocket.Chat Logic) ---
+# --- 2. CHAT-SERVICE INGRESS (strip /chat-svc prefix) ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -71,18 +71,48 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
     nginx.ingress.kubernetes.io/use-regex: "true"
-    
-    # Boss-Mode Iframe Fix: Essential for the Plane Iframe to work
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - plane.foodifytn.app
+      secretName: plane-tls-prod
+  rules:
+    - host: plane.foodifytn.app
+      http:
+        paths:
+          - path: /chat-svc(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: plane-chat-service
+                port:
+                  number: 4000
+
+---
+
+# --- 3. ROCKET.CHAT INGRESS (chat UI + channel shortcuts) ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plane-rocketchat-ingress
+  namespace: plane
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+
+    # Boss-Mode iframe headers for chat rendering inside Plane.
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_hide_header X-Frame-Options;
       proxy_hide_header Content-Security-Policy;
       add_header X-Frame-Options "SAMEORIGIN" always;
       add_header Content-Security-Policy "frame-ancestors 'self' https://plane.foodifytn.app;" always;
 
-    # Internal Rewrite Logic: Converts /channel/volt -> /chat/channel/volt
-    # This prevents the "Unknown path" error by aligning with Rocket.Chat's ROOT_URL
+    # Rewrite channel shortcuts to /chat/* while preserving /chat/* as-is.
     nginx.ingress.kubernetes.io/server-snippet: |
-      location ~* ^/(channel|group|direct|chat) {
+      location ~* ^/(channel|group|direct|chat)(/|$) {
         rewrite ^/(channel|group|direct)(.*)$ /chat/$1$2 break;
         proxy_pass http://plane-rocketchat.plane.svc.cluster.local:3000;
         proxy_set_header Host $host;
@@ -101,16 +131,7 @@ spec:
     - host: plane.foodifytn.app
       http:
         paths:
-          # Match the SSO auth flow
-          - path: /chat-svc(/|$)(.*)
-            pathType: ImplementationSpecific
-            backend:
-              service:
-                name: plane-chat-service
-                port:
-                  number: 4000
-          # Match the actual chat paths (This prevents Plane-Web from stealing traffic)
-          - path: /(channel|group|direct|chat)(.*)
+          - path: /(channel|group|direct|chat)(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
               service:
